@@ -1,0 +1,31 @@
+{# 通用表单渲染:遍历 form 字段,复选框单独排版,其余走 .field-input #}
+<form method="post" novalidate>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <div class="fld"><div class="err">{{ form.non_field_errors }}</div></div>
+    {% endif %}
+
+    {% for field in form %}
+    <div class="fld">
+        {% if field.field.widget.input_type == 'checkbox' %}
+        <div class="check-row">
+            {{ field }}
+            <label style="margin:0" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        </div>
+        {% else %}
+        <label for="{{ field.id_for_label }}">
+            {{ field.label }}{% if field.field.required %}<span class="req">*</span>{% endif %}
+        </label>
+        {{ field }}
+        {% endif %}
+        {% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
+        {% for e in field.errors %}<div class="err">{{ e }}</div>{% endfor %}
+    </div>
+    {% endfor %}
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a class="btn" href="{{ cancel_url }}">取消</a>
+    </div>
+</form>

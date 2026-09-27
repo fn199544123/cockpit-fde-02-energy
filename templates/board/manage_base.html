@@ -1,0 +1,153 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}台账管理{% endblock %} · 车间能耗监控看板</title>
+    <style>
+        :root { --bg:#0a0f1e; --panel:#111a30; --panel2:#0d1526; --line:#1e2b4a;
+                --cyan:#38bdf8; --text:#e6f0ff; --muted:#7f92b5; --ok:#34d399; --warn:#fbbf24;
+                --danger:#fb7185; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: radial-gradient(1200px 600px at 50% -10%, #16244a 0%, var(--bg) 60%);
+               color: var(--text); font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+               min-height: 100vh; }
+        a { color: var(--cyan); text-decoration: none; }
+
+        /* 顶栏 */
+        .topbar { display:flex; align-items:center; justify-content:space-between;
+                  padding: 20px 40px; border-bottom: 1px solid var(--line);
+                  background: linear-gradient(180deg, rgba(17,26,48,.9), transparent); }
+        .topbar .brand { font-size: 20px; letter-spacing: 3px; color: var(--cyan);
+                         text-shadow: 0 0 14px rgba(56,189,248,.5); }
+        .topbar nav a { margin-left: 22px; color: var(--muted); letter-spacing:1px; font-size: 14px;
+                        padding-bottom: 4px; }
+        .topbar nav a:hover { color: var(--text); }
+        .topbar nav a.on { color: var(--cyan); border-bottom: 2px solid var(--cyan); }
+
+        .wrap { padding: 28px 40px 60px; }
+        .page-head { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom: 20px; }
+        .page-head h2 { font-size: 22px; letter-spacing: 2px; }
+        .page-head .desc { color: var(--muted); font-size: 13px; margin-top: 6px; letter-spacing: 1px; }
+
+        /* 统计小片 */
+        .stats { display:flex; gap: 14px; margin-bottom: 20px; }
+        .stat { background: linear-gradient(180deg, var(--panel), var(--panel2)); border:1px solid var(--line);
+                border-radius: 10px; padding: 12px 20px; min-width: 120px; }
+        .stat .k { color: var(--muted); font-size: 12px; letter-spacing:1px; }
+        .stat .v { font-size: 26px; font-weight: 700; color: var(--cyan); margin-top: 4px; }
+
+        /* 按钮 */
+        .btn { display:inline-block; padding: 9px 18px; border-radius: 8px; font-size: 14px; letter-spacing:1px;
+               border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer;
+               transition: all .15s; }
+        .btn:hover { border-color: var(--cyan); color: var(--cyan); }
+        .btn-primary { background: linear-gradient(180deg, #1a86d0, #1466a8); border-color:#2b9fe0;
+                       color: #fff; box-shadow: 0 0 16px rgba(56,189,248,.35); }
+        .btn-primary:hover { color:#fff; filter: brightness(1.08); }
+        .btn-sm { padding: 5px 12px; font-size: 13px; }
+
+        /* 表格 */
+        .panel { background: linear-gradient(180deg, var(--panel), var(--panel2)); border:1px solid var(--line);
+                 border-radius: 12px; overflow: hidden; box-shadow: 0 0 24px rgba(0,0,0,.4); }
+        table { width: 100%; border-collapse: collapse; }
+        thead th { text-align:left; padding: 14px 18px; font-size: 13px; color: var(--muted);
+                   letter-spacing: 1px; background: rgba(30,43,74,.4); border-bottom: 1px solid var(--line); }
+        tbody td { padding: 14px 18px; border-bottom: 1px solid rgba(30,43,74,.5); font-size: 14px; }
+        tbody tr:hover { background: rgba(56,189,248,.05); }
+        tbody tr:last-child td { border-bottom: none; }
+        .tag { display:inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; letter-spacing:1px; }
+        .tag-on { color: var(--ok); background: rgba(52,211,153,.12); border: 1px solid rgba(52,211,153,.35); }
+        .tag-off { color: var(--muted); background: rgba(127,146,181,.1); border: 1px solid rgba(127,146,181,.3); }
+        .dot { display:inline-block; width:12px; height:12px; border-radius:50%; vertical-align:middle;
+               box-shadow: 0 0 8px currentColor; }
+        .mono { font-family: "Consolas", "Menlo", monospace; color: var(--muted); }
+        .empty { padding: 50px; text-align:center; color: var(--muted); }
+
+        /* 表单 */
+        .form-panel { max-width: 640px; }
+        .form-panel .body { padding: 26px 30px; }
+        .fld { margin-bottom: 20px; }
+        .fld label { display:block; color: var(--muted); font-size: 13px; letter-spacing:1px; margin-bottom: 8px; }
+        .fld label .req { color: var(--danger); margin-left: 4px; }
+        .field-input { width: 100%; padding: 10px 14px; border-radius: 8px; background: #0a1120;
+                       border: 1px solid var(--line); color: var(--text); font-size: 14px; outline: none;
+                       transition: border-color .15s; }
+        .field-input:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(56,189,248,.15); }
+        select.field-input { appearance: none; }
+        .check-row { display:flex; align-items:center; gap: 10px; }
+        .field-check { width: 18px; height: 18px; accent-color: var(--cyan); }
+        .help { color: var(--muted); font-size: 12px; margin-top: 6px; }
+        .err { color: var(--danger); font-size: 12px; margin-top: 6px; }
+        .form-actions { display:flex; gap: 12px; margin-top: 26px; padding-top: 20px;
+                        border-top: 1px solid var(--line); }
+
+        /* 消息条 */
+        .flash { margin-bottom: 18px; }
+        .flash .msg { padding: 12px 18px; border-radius: 8px; font-size: 14px; letter-spacing:1px;
+                      border:1px solid; margin-bottom: 8px; }
+        .flash .success { color: var(--ok); background: rgba(52,211,153,.1); border-color: rgba(52,211,153,.4); }
+        .flash .error { color: var(--danger); background: rgba(251,113,133,.1); border-color: rgba(251,113,133,.4); }
+
+        /* 筛选条 */
+        .filterbar { display:flex; flex-wrap:wrap; align-items:flex-end; gap: 14px; margin-bottom: 20px;
+                     padding: 16px 20px; background: linear-gradient(180deg, var(--panel), var(--panel2));
+                     border:1px solid var(--line); border-radius: 12px; }
+        .filterbar .fitem { display:flex; flex-direction:column; gap:6px; }
+        .filterbar label { color: var(--muted); font-size: 12px; letter-spacing:1px; }
+        .filterbar .field-input { min-width: 150px; padding: 8px 12px; }
+        .filterbar .btns { display:flex; gap: 10px; margin-left:auto; }
+
+        /* 批量录入网格 */
+        .grid-wrap { overflow-x:auto; }
+        table.grid { min-width: 100%; }
+        table.grid thead th { text-align:center; white-space:nowrap; }
+        table.grid thead th.slot { text-align:left; }
+        table.grid td { padding: 8px 10px; text-align:center; }
+        table.grid td.slot { text-align:left; white-space:nowrap; font-family:"Consolas",monospace; color: var(--muted); }
+        table.grid input { width: 110px; padding: 7px 8px; border-radius: 6px; background:#0a1120;
+                           border:1px solid var(--line); color: var(--text); font-size:13px; text-align:right;
+                           outline:none; transition:border-color .12s; }
+        table.grid input:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(56,189,248,.15); }
+        table.grid input.filled { border-color: rgba(52,211,153,.5); }
+        table.grid input.out { width: 96px; border-color: rgba(251,191,36,.35); }
+        .unit { color: var(--muted); font-size: 11px; font-weight: normal; }
+        .toolbar-note { color: var(--muted); font-size: 12px; letter-spacing:1px; margin: 4px 0 16px; }
+        .pager { display:flex; align-items:center; gap: 14px; justify-content:center; margin-top: 20px;
+                 color: var(--muted); font-size: 13px; }
+@media(max-width:600px){
+  .page-head{flex-direction:column;align-items:stretch;gap:14px}
+  .page-head>div{flex-wrap:wrap}
+  .btn{white-space:nowrap;min-height:44px}
+  header{flex-wrap:wrap;gap:12px}
+  input,select,textarea{font-size:16px!important;max-width:100%}
+}
+</style>
+    {% block extra_style %}{% endblock %}
+</head>
+<body>
+    <div class="topbar">
+        <div class="brand">车间能耗监控看板</div>
+        <nav>
+            <a href="{% url 'board:dashboard' %}">大屏看板</a>
+            <a href="{% url 'board:section_list' %}" class="{% block nav_section %}{% endblock %}">工段台账</a>
+            <a href="{% url 'board:energy_list' %}" class="{% block nav_energy %}{% endblock %}">能源台账</a>
+            <a href="{% url 'board:reading_list' %}" class="{% block nav_reading %}{% endblock %}">数据录入</a>
+            <a href="{% url 'board:analysis' %}" class="{% block nav_analysis %}{% endblock %}">分析排名</a>
+            <a href="{% url 'board:efficiency' %}" class="{% block nav_efficiency %}{% endblock %}">能效分析</a>
+            <a href="{% url 'board:alerts' %}" class="{% block nav_alerts %}{% endblock %}">超标预警</a>
+        </nav>
+    </div>
+
+    <div class="wrap">
+        {% if messages %}
+        <div class="flash">
+            {% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}
+        </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

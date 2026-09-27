@@ -1,0 +1,104 @@
+{% extends 'board/manage_base.html' %}
+{% block title %}快速批量录入{% endblock %}
+{% block nav_reading %}on{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h2>⚡ 快速批量录入</h2>
+        <div class="desc">选定工段 + 日期 + 时段步长,一张表格一次录入多时段 × 多能源用量;已有数据自动回填、提交即覆盖</div>
+    </div>
+    <a class="btn" href="{% url 'board:reading_list' %}">← 返回读数台账</a>
+</div>
+
+{# 选择器:切换工段/日期/步长时用 GET 重新加载表格 #}
+<form method="get" class="filterbar" id="chooser">
+    <div class="fitem">
+        <label>工段</label>
+        <select name="section" class="field-input" onchange="document.getElementById('chooser').submit()">
+            {% for s in sections %}
+            <option value="{{ s.pk }}" {% if sec_id == s.pk|stringformat:'s' %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="fitem">
+        <label>日期</label>
+        <input type="date" name="date" value="{{ date_str }}" class="field-input"
+               onchange="document.getElementById('chooser').submit()">
+    </div>
+    <div class="fitem">
+        <label>时段步长(小时)</label>
+        <select name="step" class="field-input" onchange="document.getElementById('chooser').submit()">
+            {% for st in step_choices %}
+            <option value="{{ st }}" {% if step == st %}selected{% endif %}>每 {{ st }} 小时{% if st == 24 %}(整日 1 条){% endif %}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="btns">
+        <button type="submit" class="btn">刷新表格</button>
+    </div>
+</form>
+
+<div class="toolbar-note">
+    当前已填 <b style="color:var(--ok)">{{ filled_num }}</b> 个数据点 · 空白格不写入(若原有数据则清除)·
+    「产量」按时段共享写入该时段所有能源 · 提交按 (工段,能源,时刻) 覆盖更新
+</div>
+
+{% if sections %}
+<form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="{{ sec_id }}">
+    <input type="hidden" name="date" value="{{ date_str }}">
+    <input type="hidden" name="step" value="{{ step }}">
+
+    <div class="panel grid-wrap">
+        <table class="grid">
+            <thead>
+                <tr>
+                    <th class="slot">时段</th>
+                    {% for e in energies %}
+                    <th>{{ e.name }} <span class="unit">/ {{ e.unit }}</span></th>
+                    {% endfor %}
+                    <th>产量 <span class="unit">(可空)</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td class="slot">{{ row.label }}<span class="unit"> ~ {{ row.end_label }}</span></td>
+                    {% for c in row.cells %}
+                    <td>
+                        <input type="number" step="0.001" min="0" name="amt_{{ c.et.pk }}_{{ row.hour }}"
+                               value="{{ c.value }}" class="{% if c.value != '' %}filled{% endif %}"
+                               placeholder="—">
+                    </td>
+                    {% endfor %}
+                    <td>
+                        <input type="number" step="0.001" min="0" name="out_{{ row.hour }}"
+                               value="{{ row.out_value }}" class="out" placeholder="产量">
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">💾 保存本页全部录入</button>
+        <a class="btn" href="{% url 'board:reading_list' %}">取消</a>
+    </div>
+</form>
+{% else %}
+<div class="panel"><div class="empty">尚无启用的工段,请先到「工段台账」建立工段后再录入。</div></div>
+{% endif %}
+
+<script>
+// 输入即高亮「已填」态,所见即所得
+document.querySelectorAll('table.grid input').forEach(function (inp) {
+    inp.addEventListener('input', function () {
+        if (this.classList.contains('out')) return;
+        this.classList.toggle('filled', this.value.trim() !== '');
+    });
+});
+</script>
+{% endblock %}

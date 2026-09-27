@@ -1,0 +1,151 @@
+{% extends 'board/manage_base.html' %}
+
+{% block title %}超标预警{% endblock %}
+{% block nav_alerts %}on{% endblock %}
+
+{% block extra_style %}
+<style>
+    /* 计数卡片 */
+    .alertcards { display:grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
+    .acard { background: linear-gradient(180deg, var(--panel), var(--panel2)); border:1px solid var(--line);
+             border-radius: 14px; padding: 18px 22px; position:relative; overflow:hidden; }
+    .acard .k { color: var(--muted); font-size: 13px; letter-spacing: 1px; }
+    .acard .v { font-size: 40px; font-weight: 800; margin-top: 6px; line-height:1; }
+    .acard .u { font-size: 14px; color: var(--muted); font-weight: 400; margin-left: 4px; }
+    .acard.over  { border-color: rgba(251,113,133,.5); box-shadow: 0 0 24px rgba(251,113,133,.15); }
+    .acard.over  .v { color: var(--danger); text-shadow: 0 0 18px rgba(251,113,133,.5); }
+    .acard.warn  .v { color: var(--warn); text-shadow: 0 0 18px rgba(251,191,36,.4); }
+    .acard.ok    .v { color: var(--ok); }
+    .acard.total .v { color: var(--cyan); }
+    .acard .pulse { position:absolute; top:0; right:0; width:64px; height:64px;
+                    background: radial-gradient(circle at 70% 30%, rgba(251,113,133,.35), transparent 70%); }
+
+    /* 状态徽标 */
+    .badge { display:inline-flex; align-items:center; gap:6px; padding: 4px 11px; border-radius: 999px;
+             font-size: 12px; letter-spacing: 1px; font-weight: 600; white-space:nowrap; }
+    .badge.over { color:#fff; background: linear-gradient(180deg,#fb5c74,#e11d48); border:1px solid #fb7185; }
+    .badge.warn { color:#3a2a00; background: linear-gradient(180deg,#fbd24b,#f59e0b); border:1px solid #fbbf24; }
+    .badge.ok   { color: var(--ok); background: rgba(52,211,153,.12); border:1px solid rgba(52,211,153,.35); }
+    .badge .dotp { width:7px; height:7px; border-radius:50%; background: currentColor; }
+    .badge.over .dotp, .badge.warn .dotp { background: rgba(0,0,0,.55); }
+
+    td.num, th.num { text-align: right; font-family: "Consolas","Menlo",monospace; }
+    td.num { white-space:nowrap; }
+
+    /* 比例进度条 */
+    .rbar-wrap { display:flex; align-items:center; gap:10px; min-width: 220px; }
+    .rbar { flex:1; height: 12px; border-radius: 7px; background: rgba(30,43,74,.7); position:relative; overflow:hidden; }
+    .rbar > span { display:block; height:100%; border-radius:7px; }
+    .rbar > span.over { background: linear-gradient(90deg,#e11d48,#fb7185); box-shadow: 0 0 12px rgba(251,113,133,.6); }
+    .rbar > span.warn { background: linear-gradient(90deg,#d97706,#fbbf24); box-shadow: 0 0 12px rgba(251,191,36,.5); }
+    .rbar > span.ok   { background: linear-gradient(90deg,#1466a8,#38bdf8); }
+    .rbar .tick { position:absolute; top:-2px; bottom:-2px; width:2px; background: rgba(230,240,255,.55); }
+    .rbar .tick.line100 { background: #fff; box-shadow: 0 0 6px #fff; }
+    .rpct { width: 58px; text-align:right; font-family:"Consolas",monospace; font-weight:700; }
+    .rpct.over { color: var(--danger); }
+    .rpct.warn { color: var(--warn); }
+    .rpct.ok   { color: var(--muted); }
+    tr.row-over td { background: rgba(251,113,133,.06); }
+    tr.row-over:hover td { background: rgba(251,113,133,.11); }
+    .subhint { color: var(--muted); font-size: 11px; margin-top:3px; }
+    .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+    .seg a { padding: 8px 16px; font-size: 13px; color: var(--muted); background: var(--panel); }
+    .seg a.on { background: linear-gradient(180deg,#1a86d0,#1466a8); color:#fff; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h2>超标预警 · 实际用量对照定额</h2>
+        <div class="desc">参考日 <b style="color:var(--cyan)">{{ ref }}</b> ·
+            各工段各能源按考核周期比对定额,进行中周期按<b>进度对标</b>折算 ·
+            实际/定额 ≥100% <b style="color:var(--danger)">超标</b>,
+            ≥预警阈值 <b style="color:var(--warn)">预警</b></div>
+    </div>
+</div>
+
+{# 计数卡片 #}
+<div class="alertcards">
+    <div class="acard over"><div class="pulse"></div>
+        <div class="k">🔴 超标</div><div class="v">{{ over_count }}<span class="u">项</span></div></div>
+    <div class="acard warn">
+        <div class="k">🟡 预警</div><div class="v">{{ warn_count }}<span class="u">项</span></div></div>
+    <div class="acard ok">
+        <div class="k">🟢 正常</div><div class="v">{{ normal_count }}<span class="u">项</span></div></div>
+    <div class="acard total">
+        <div class="k">定额对标总数</div><div class="v">{{ quota_total }}<span class="u">项</span></div></div>
+</div>
+
+{# 筛选 #}
+<form method="get" class="filterbar">
+    <div class="fitem">
+        <label>参考日期</label>
+        <input type="date" name="ref" value="{{ ref }}" max="{{ today }}" class="field-input">
+    </div>
+    <div class="fitem">
+        <label>显示范围</label>
+        <div class="seg">
+            <a href="?ref={{ ref }}&show=alert" class="{% if show == 'alert' %}on{% endif %}">仅告警({{ alert_total }})</a>
+            <a href="?ref={{ ref }}&show=all" class="{% if show == 'all' %}on{% endif %}">全部({{ quota_total }})</a>
+        </div>
+    </div>
+    <div class="btns">
+        <button type="submit" class="btn btn-primary">刷新</button>
+        <a class="btn" href="{% url 'board:alerts' %}">回到最新</a>
+    </div>
+</form>
+
+<div class="panel">
+    <table>
+        <thead>
+            <tr>
+                <th>状态</th>
+                <th>工段</th>
+                <th>能源</th>
+                <th>周期</th>
+                <th class="num">实际用量</th>
+                <th class="num">对标定额</th>
+                <th style="min-width:240px">达成率(实际/定额)</th>
+                <th class="num">超出量</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr class="{% if r.status == 'over' %}row-over{% endif %}">
+                <td>
+                    {% if r.status == 'over' %}<span class="badge over"><span class="dotp"></span>超标</span>
+                    {% elif r.status == 'warn' %}<span class="badge warn"><span class="dotp"></span>预警</span>
+                    {% else %}<span class="badge ok"><span class="dotp"></span>正常</span>{% endif %}
+                </td>
+                <td>{{ r.section.name }}<div class="subhint mono">{{ r.section.code }}</div></td>
+                <td><span class="dot" style="color:{{ r.et.color }};width:9px;height:9px"></span> {{ r.et.name }}</td>
+                <td>{{ r.period_disp }}
+                    {% if r.in_progress %}<div class="subhint">进度 {{ r.frac_pct }}%</div>{% endif %}
+                </td>
+                <td class="num">{{ r.actual_disp }} <span class="unit">{{ r.et.unit }}</span></td>
+                <td class="num">{{ r.eff_limit_disp }}
+                    {% if r.in_progress %}<div class="subhint">全周期 {{ r.limit_disp }}</div>{% endif %}
+                </td>
+                <td>
+                    <div class="rbar-wrap">
+                        <div class="rbar">
+                            <span class="{{ r.cls }}" style="width:{{ r.ratio_bar }}%"></span>
+                            {# 预警线与 100% 线(相对 130% 封顶刻度) #}
+                            <div class="tick line100" style="left:76.9%"></div>
+                        </div>
+                        <div class="rpct {{ r.cls }}">{{ r.ratio_pct }}%</div>
+                    </div>
+                </td>
+                <td class="num">{% if r.over_by_disp %}<span style="color:var(--danger)">+{{ r.over_by_disp }}</span>
+                    {% else %}<span style="color:var(--muted)">—</span>{% endif %}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" class="empty">
+                {% if show == 'alert' %}🎉 当前参考周期内无超标 / 预警项,能耗全部在定额内。{% else %}尚无定额配置或读数数据。{% endif %}
+            </td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

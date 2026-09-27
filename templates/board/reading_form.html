@@ -1,0 +1,47 @@
+{% extends 'board/manage_base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block nav_reading %}on{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h2>{{ title }}</h2>
+        <div class="desc">{{ subtitle }}</div>
+    </div>
+    <div style="display:flex; gap:10px;">
+        <a class="btn btn-primary" href="{% url 'board:reading_batch' %}">⚡ 快速批量录入</a>
+        <a class="btn" href="{{ cancel_url }}">← 返回读数台账</a>
+    </div>
+</div>
+
+<div class="panel form-panel">
+    <div class="body">
+        <form method="post" novalidate>
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+            <div class="fld"><div class="err">{{ form.non_field_errors }}</div></div>
+            {% endif %}
+
+            {% for field in form %}
+            <div class="fld">
+                <label for="{{ field.id_for_label }}">
+                    {{ field.label }}{% if field.field.required %}<span class="req">*</span>{% endif %}
+                </label>
+                {{ field }}
+                {% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
+                {% for e in field.errors %}<div class="err">{{ e }}</div>{% endfor %}
+            </div>
+            {% endfor %}
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">保存</button>
+                {% if not instance %}
+                <button type="submit" name="_addanother" value="1" class="btn">保存并继续录入</button>
+                {% endif %}
+                <a class="btn" href="{{ cancel_url }}">取消</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

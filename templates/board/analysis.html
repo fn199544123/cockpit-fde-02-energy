@@ -1,0 +1,182 @@
+{% extends 'board/manage_base.html' %}
+
+{% block title %}同比环比 · 能耗排名{% endblock %}
+{% block nav_analysis %}on{% endblock %}
+
+{% block extra_style %}
+<style>
+    .delta { font-size: 13px; letter-spacing: .5px; white-space: nowrap; }
+    .delta.up   { color: var(--danger); }   /* 能耗上升 = 红 */
+    .delta.down { color: var(--ok); }        /* 能耗下降 = 绿 */
+    .delta.flat { color: var(--muted); }
+    .delta .arrow { font-size: 11px; margin-right: 2px; }
+
+    /* 总览卡片 */
+    .ovcards { display:grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .ovcard { background: linear-gradient(180deg, var(--panel), var(--panel2)); border:1px solid var(--line);
+              border-radius: 14px; padding: 20px 24px; box-shadow: 0 0 24px rgba(0,0,0,.35); }
+    .ovcard .k { color: var(--muted); font-size: 13px; letter-spacing: 1px; }
+    .ovcard .v { font-size: 34px; font-weight: 800; color: var(--cyan); margin: 8px 0 2px;
+                 text-shadow: 0 0 16px rgba(56,189,248,.35); }
+    .ovcard .v small { font-size: 14px; color: var(--muted); font-weight: 400; margin-left: 4px; }
+    .ovcard.sub .v { font-size: 26px; color: var(--text); text-shadow:none; }
+    .ovcard .cmp { margin-top: 8px; font-size: 13px; color: var(--muted); }
+    .ovcard .cmp .base { color: var(--text); }
+
+    .sect-title { font-size: 15px; letter-spacing: 2px; color: var(--cyan); margin: 26px 0 12px;
+                  padding-left: 10px; border-left: 3px solid var(--cyan); }
+    td.num { text-align: right; font-family: "Consolas","Menlo",monospace; }
+    th.num { text-align: right; }
+
+    /* 排名条 */
+    .rankcell { display:flex; align-items:center; gap: 12px; min-width: 260px; }
+    .rankno { width: 26px; height: 26px; border-radius: 7px; display:flex; align-items:center; justify-content:center;
+              font-weight:700; font-size: 14px; background: rgba(56,189,248,.12); color: var(--cyan);
+              border:1px solid rgba(56,189,248,.3); flex: none; }
+    .rankno.top1 { background: linear-gradient(180deg,#f6c453,#e0a020); color:#3a2a00; border-color:#f6c453; }
+    .rankno.top2 { background: linear-gradient(180deg,#cfd8e6,#9aa7bd); color:#1a2233; border-color:#cfd8e6; }
+    .rankno.top3 { background: linear-gradient(180deg,#e0a06a,#b9773f); color:#2a1500; border-color:#e0a06a; }
+    .barbox { flex:1; }
+    .barbox .name { font-size: 14px; margin-bottom: 6px; }
+    .barbox .name .code { color: var(--muted); font-size: 12px; margin-left: 6px; }
+    .bar { height: 10px; border-radius: 6px; background: rgba(30,43,74,.6); overflow: hidden; }
+    .bar > span { display:block; height:100%; border-radius:6px;
+                  background: linear-gradient(90deg, #1466a8, var(--cyan)); box-shadow: 0 0 10px rgba(56,189,248,.5); }
+    .struct { display:flex; gap: 10px; flex-wrap:wrap; }
+    .struct .chip { font-size: 12px; color: var(--muted); }
+    .struct .chip b { color: var(--text); font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h2>同比 / 环比 · 工段能耗排名</h2>
+        <div class="desc">当期 <b style="color:var(--cyan)">{{ period_labels.cur }}</b> ·
+            环比上期 {{ period_labels.prev }} · 同比去年 {{ period_labels.yoy }} ·
+            跨能源按<b>折标煤(tce)</b>统一口径</div>
+    </div>
+</div>
+
+{# 周期选择 #}
+<form method="get" class="filterbar">
+    <div class="fitem">
+        <label>统计粒度</label>
+        <select name="gran" class="field-input">
+            {% for val, lbl in gran_choices %}
+            <option value="{{ val }}" {% if val == gran %}selected{% endif %}>{{ lbl }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="fitem">
+        <label>参考日期{% if gran == 'month' %}(取所在月){% endif %}</label>
+        <input type="date" name="ref" value="{{ ref }}" max="{{ today }}" class="field-input">
+    </div>
+    <div class="btns">
+        <button type="submit" class="btn btn-primary">刷新分析</button>
+        <a class="btn" href="{% url 'board:analysis' %}">回到今日</a>
+    </div>
+</form>
+
+{# 全厂总览 #}
+<div class="ovcards">
+    <div class="ovcard">
+        <div class="k">全厂当期总能耗</div>
+        <div class="v">{{ overall.cur_disp }}<small>tce</small></div>
+        <div class="cmp">
+            环比 <span class="delta {{ overall.mom_d.cls }}"><span class="arrow">{{ overall.mom_d.arrow }}</span>{{ overall.mom_d.text }}</span>
+            · 同比 <span class="delta {{ overall.yoy_d.cls }}"><span class="arrow">{{ overall.yoy_d.arrow }}</span>{{ overall.yoy_d.text }}</span>
+        </div>
+    </div>
+    <div class="ovcard sub">
+        <div class="k">环比上期({{ period_labels.prev }})</div>
+        <div class="v">{{ overall.prev_disp }}<small>tce</small></div>
+        <div class="cmp">当期较上期 <span class="delta {{ overall.mom_d.cls }}">{{ overall.mom_d.arrow }} {{ overall.mom_d.text }}</span></div>
+    </div>
+    <div class="ovcard sub">
+        <div class="k">同比去年({{ period_labels.yoy }})</div>
+        <div class="v">{{ overall.yoy_disp }}<small>tce</small></div>
+        <div class="cmp">当期较去年 <span class="delta {{ overall.yoy_d.cls }}">{{ overall.yoy_d.arrow }} {{ overall.yoy_d.text }}</span></div>
+    </div>
+</div>
+
+{# 分能源同比环比 #}
+<div class="sect-title">分能源类型 · 同比环比</div>
+<div class="panel">
+    <table>
+        <thead>
+            <tr>
+                <th>能源类型</th>
+                <th class="num">当期用量</th>
+                <th class="num">折标煤(tce)</th>
+                <th class="num">上期</th>
+                <th class="num">环比</th>
+                <th class="num">去年同期</th>
+                <th class="num">同比</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in energy_rows %}
+            <tr>
+                <td><span class="dot" style="color:{{ r.et.color }}"></span> {{ r.et.name }}
+                    <span class="unit">/ {{ r.et.unit }}</span></td>
+                <td class="num">{{ r.cur_disp }} {{ r.et.unit }}</td>
+                <td class="num">{{ r.cur_tce_disp }}</td>
+                <td class="num">{{ r.prev_disp }}</td>
+                <td class="num"><span class="delta {{ r.mom_d.cls }}">{{ r.mom_d.arrow }} {{ r.mom_d.text }}</span></td>
+                <td class="num">{{ r.yoy_disp }}</td>
+                <td class="num"><span class="delta {{ r.yoy_d.cls }}">{{ r.yoy_d.arrow }} {{ r.yoy_d.text }}</span></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="empty">尚无能源类型 / 读数数据。</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{# 工段能耗排名 #}
+<div class="sect-title">工段能耗排名 · 折标煤(tce)当期</div>
+<div class="panel">
+    <table>
+        <thead>
+            <tr>
+                <th style="min-width:280px">排名 / 工段(占比条)</th>
+                <th class="num">当期能耗(tce)</th>
+                <th class="num">占全厂</th>
+                <th class="num">环比</th>
+                <th class="num">同比</th>
+                <th>能源结构(原始单位)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in sec_rows %}
+            <tr>
+                <td>
+                    <div class="rankcell">
+                        <div class="rankno {% if r.rank == 1 %}top1{% elif r.rank == 2 %}top2{% elif r.rank == 3 %}top3{% endif %}">{{ r.rank }}</div>
+                        <div class="barbox">
+                            <div class="name">{{ r.section.name }}<span class="code">{{ r.section.code }}</span></div>
+                            <div class="bar"><span style="width:{{ r.bar_disp }}%"></span></div>
+                        </div>
+                    </div>
+                </td>
+                <td class="num" style="font-size:15px;color:var(--cyan)">{{ r.cur_disp }}</td>
+                <td class="num">{{ r.share_disp }}%</td>
+                <td class="num"><span class="delta {{ r.mom_d.cls }}">{{ r.mom_d.arrow }} {{ r.mom_d.text }}</span></td>
+                <td class="num"><span class="delta {{ r.yoy_d.cls }}">{{ r.yoy_d.arrow }} {{ r.yoy_d.text }}</span></td>
+                <td>
+                    <div class="struct">
+                        {% for be in r.by_energy %}
+                        <span class="chip"><span class="dot" style="color:{{ be.et.color }};width:8px;height:8px"></span>
+                            {{ be.et.name }} <b>{{ be.cur_disp }}</b>{{ be.et.unit }}</span>
+                        {% endfor %}
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="empty">尚无工段 / 读数数据。</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

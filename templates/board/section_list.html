@@ -1,0 +1,47 @@
+{% extends 'board/manage_base.html' %}
+{% block title %}工段台账{% endblock %}
+{% block nav_section %}on{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h2>工段台账</h2>
+        <div class="desc">工段是能耗采集与考核的基本单元(某企业 · 焦化车间,均为脱敏占位)</div>
+    </div>
+    <a class="btn btn-primary" href="{% url 'board:section_new' %}">+ 新增工段</a>
+</div>
+
+<div class="stats">
+    <div class="stat"><div class="k">工段总数</div><div class="v">{{ total_num }}</div></div>
+    <div class="stat"><div class="k">启用中</div><div class="v">{{ active_num }}</div></div>
+</div>
+
+<div class="panel">
+    <table>
+        <thead>
+            <tr>
+                <th>排序</th><th>工段编号</th><th>工段名称</th>
+                <th>读数</th><th>定额</th><th>状态</th><th style="width:120px">操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in sections %}
+            <tr>
+                <td class="mono">{{ s.order }}</td>
+                <td class="mono">{{ s.code }}</td>
+                <td>{{ s.name }}</td>
+                <td class="mono">{{ s.reading_num }}</td>
+                <td class="mono">{{ s.quota_num }}</td>
+                <td>
+                    {% if s.active %}<span class="tag tag-on">启用</span>
+                    {% else %}<span class="tag tag-off">停用</span>{% endif %}
+                </td>
+                <td><a class="btn btn-sm" href="{% url 'board:section_edit' s.pk %}">编辑</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7"><div class="empty">暂无工段,点击右上角「新增工段」建立第一条台账。</div></td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

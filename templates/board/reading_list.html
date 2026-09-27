@@ -1,0 +1,91 @@
+{% extends 'board/manage_base.html' %}
+{% block title %}能耗数据录入{% endblock %}
+{% block nav_reading %}on{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h2>能耗数据录入 / 采集</h2>
+        <div class="desc">按工段 · 能源 · 时段采集用量到读数台账;支持快速批量录入(某企业 · 焦化车间,脱敏占位)</div>
+    </div>
+    <div style="display:flex; gap:10px;">
+        <a class="btn btn-primary" href="{% url 'board:reading_batch' %}">⚡ 快速批量录入</a>
+        <a class="btn" href="{% url 'board:reading_new' %}">+ 单条录入</a>
+    </div>
+</div>
+
+<form method="get" class="filterbar">
+    <div class="fitem">
+        <label>工段</label>
+        <select name="section" class="field-input">
+            <option value="">全部工段</option>
+            {% for s in sections %}
+            <option value="{{ s.pk }}" {% if f_section == s.pk|stringformat:'s' %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="fitem">
+        <label>能源类型</label>
+        <select name="energy" class="field-input">
+            <option value="">全部能源</option>
+            {% for e in energies %}
+            <option value="{{ e.pk }}" {% if f_energy == e.pk|stringformat:'s' %}selected{% endif %}>{{ e.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="fitem">
+        <label>起始日期</label>
+        <input type="date" name="from" value="{{ f_from }}" class="field-input">
+    </div>
+    <div class="fitem">
+        <label>结束日期</label>
+        <input type="date" name="to" value="{{ f_to }}" class="field-input">
+    </div>
+    <div class="btns">
+        <button type="submit" class="btn btn-primary">筛选</button>
+        <a class="btn" href="{% url 'board:reading_list' %}">重置</a>
+    </div>
+</form>
+
+<div class="stats">
+    <div class="stat"><div class="k">读数记录总数</div><div class="v">{{ total_num }}</div></div>
+</div>
+
+<div class="panel">
+    <table>
+        <thead>
+            <tr>
+                <th>采集时间</th><th>工段</th><th>能源</th>
+                <th style="text-align:right">用量</th><th style="text-align:right">产量</th>
+                <th style="width:90px">操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in page_obj %}
+            <tr>
+                <td class="mono">{{ r.ts|date:'Y-m-d H:i' }}</td>
+                <td>{{ r.section.name }}</td>
+                <td><span class="dot" style="color:{{ r.energy_type.color }}"></span> {{ r.energy_type.name }}</td>
+                <td class="mono" style="text-align:right">{{ r.amount|floatformat:'-3' }} <span class="unit">{{ r.energy_type.unit }}</span></td>
+                <td class="mono" style="text-align:right">{% if r.output is not None %}{{ r.output|floatformat:'-3' }}{% else %}—{% endif %}</td>
+                <td><a class="btn btn-sm" href="{% url 'board:reading_edit' r.pk %}">编辑</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6"><div class="empty">暂无读数记录,点击右上角「快速批量录入 / 单条录入」开始采集能耗数据。</div></td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="pager">
+    {% if page_obj.has_previous %}
+    <a class="btn btn-sm" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.previous_page_number }}">← 上一页</a>
+    {% endif %}
+    <span>第 {{ page_obj.number }} / {{ page_obj.paginator.num_pages }} 页</span>
+    {% if page_obj.has_next %}
+    <a class="btn btn-sm" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.next_page_number }}">下一页 →</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

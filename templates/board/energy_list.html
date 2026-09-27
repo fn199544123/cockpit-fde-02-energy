@@ -1,0 +1,46 @@
+{% extends 'board/manage_base.html' %}
+{% block title %}能源台账{% endblock %}
+{% block nav_energy %}on{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h2>能源类型台账</h2>
+        <div class="desc">电 / 煤 / 蒸汽,各自计量单位不同;折标煤系数用于统一口径汇总全厂总能耗</div>
+    </div>
+    <a class="btn btn-primary" href="{% url 'board:energy_new' %}">+ 新增能源类型</a>
+</div>
+
+<div class="stats">
+    <div class="stat"><div class="k">能源类型数</div><div class="v">{{ total_num }}</div></div>
+</div>
+
+<div class="panel">
+    <table>
+        <thead>
+            <tr>
+                <th>排序</th><th>颜色</th><th>类型</th><th>名称</th><th>单位</th>
+                <th>折标煤系数</th><th>读数</th><th>定额</th><th style="width:120px">操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in energies %}
+            <tr>
+                <td class="mono">{{ e.order }}</td>
+                <td><span class="dot" style="color:{{ e.color }};background:{{ e.color }}"></span>
+                    <span class="mono" style="margin-left:8px">{{ e.color }}</span></td>
+                <td>{{ e.get_kind_display }}</td>
+                <td>{{ e.name }}</td>
+                <td class="mono">{{ e.unit }}</td>
+                <td class="mono">{{ e.coal_equiv }}</td>
+                <td class="mono">{{ e.reading_num }}</td>
+                <td class="mono">{{ e.quota_num }}</td>
+                <td><a class="btn btn-sm" href="{% url 'board:energy_edit' e.pk %}">编辑</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="9"><div class="empty">暂无能源类型,点击右上角「新增能源类型」建立台账。</div></td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

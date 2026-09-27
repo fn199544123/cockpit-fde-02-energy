@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>车间能耗监控看板</title>
+    <style>
+        :root { --bg:#070c1a; --panel:#111a30; --panel2:#0c1424; --line:#1e2b4a; --cyan:#38bdf8;
+                --text:#e6f0ff; --muted:#7f92b5; --ok:#34d399; --warn:#fbbf24; --danger:#fb7185;
+                --gold:#fcd34d; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background:
+                 radial-gradient(1400px 700px at 50% -12%, #16244a 0%, var(--bg) 62%),
+                 var(--bg);
+               color: var(--text); font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+               min-height: 100vh; padding-bottom: 8px; }
+        a { text-decoration:none; }
+
+        /* ---- 顶栏 ---- */
+        header { display:flex; align-items:center; gap:20px; padding: 20px 40px 12px; }
+        header .brand { flex:1; }
+        header h1 { font-size: 30px; letter-spacing: 5px; color: var(--cyan);
+                    text-shadow: 0 0 20px rgba(56,189,248,.55); }
+        header .sub { color: var(--muted); margin-top: 7px; letter-spacing: 2px; font-size: 13px; }
+        header .clock { text-align:right; }
+        header .clock .t { font-size: 30px; font-weight: 700; letter-spacing:2px;
+                          font-family:"Consolas","Menlo",monospace; color: var(--text);
+                          text-shadow: 0 0 16px rgba(56,189,248,.3); }
+        header .clock .d { color: var(--muted); font-size: 13px; letter-spacing:2px; margin-top:4px; }
+        header .clock .live { display:inline-flex; align-items:center; gap:6px; color: var(--ok);
+                              font-size: 12px; letter-spacing:1px; margin-top:5px; }
+        .beat { width:8px; height:8px; border-radius:50%; background: var(--ok);
+                box-shadow: 0 0 10px var(--ok); animation: blink 1.2s infinite; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+        /* ---- KPI 卡 ---- */
+        .kpis { display:grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr; gap: 16px; padding: 8px 40px; }
+        .kpi { background: linear-gradient(180deg, var(--panel), var(--panel2)); border:1px solid var(--line);
+               border-radius: 14px; padding: 18px 22px; position:relative; overflow:hidden;
+               box-shadow: 0 0 24px rgba(0,0,0,.4); }
+        .kpi .k { color: var(--muted); font-size: 13px; letter-spacing:1px; }
+        .kpi .v { font-size: 40px; font-weight: 800; color: var(--cyan); margin-top: 8px; line-height:1;
+                  text-shadow: 0 0 16px rgba(56,189,248,.4); }
+        .kpi .v small { font-size: 15px; font-weight:500; color: var(--muted); margin-left:6px; }
+        .kpi.hero { grid-row: span 1; }
+        .kpi.hero .v { font-size: 52px; }
+        .kpi .foot { margin-top:10px; font-size:12px; color: var(--muted); letter-spacing:.5px; }
+        .kpi.over .v { color: var(--danger); text-shadow: 0 0 18px rgba(251,113,133,.5); }
+        .kpi.warn .v { color: var(--warn); text-shadow: 0 0 16px rgba(251,191,36,.4); }
+        .kpi.over { border-color: rgba(251,113,133,.5); box-shadow: 0 0 26px rgba(251,113,133,.14); }
+        .delta { display:inline-block; font-size:13px; font-weight:700; padding:2px 8px; border-radius:6px;
+                 font-family:"Consolas",monospace; }
+        .delta.up   { color:#fecaca; background: rgba(251,113,133,.16); }
+        .delta.down { color:#bbf7d0; background: rgba(52,211,153,.16); }
+        .delta.flat { color: var(--muted); background: rgba(127,146,181,.14); }
+
+        /* ---- 主体三栏 ---- */
+        .main { display:grid; grid-template-columns: 1.15fr 1fr; gap: 18px; padding: 12px 40px; }
+        .panel { background: linear-gradient(180deg, var(--panel), var(--panel2)); border:1px solid var(--line);
+                 border-radius: 14px; box-shadow: 0 0 24px rgba(0,0,0,.4); overflow:hidden; }
+        .panel > .hd { display:flex; align-items:center; gap:10px; padding: 14px 18px 10px; }
+        .panel > .hd h2 { font-size: 16px; letter-spacing: 2px; color: var(--text); }
+        .panel > .hd .tag { margin-left:auto; color: var(--muted); font-size:12px; letter-spacing:1px; }
+        .panel > .bd { padding: 4px 18px 18px; }
+
+        /* 工段排名 */
+        .rank { display:flex; flex-direction:column; gap: 12px; padding-top:6px; }
+        .rrow { display:grid; grid-template-columns: 30px 1fr; gap:12px; align-items:center; }
+        .rno { width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+               font-weight:800; font-size:14px; color:#0a0f1e; background: var(--muted); }
+        .rrow:nth-child(1) .rno { background: linear-gradient(180deg,#fde68a,#f59e0b); box-shadow:0 0 14px rgba(251,191,36,.5); }
+        .rrow:nth-child(2) .rno { background: linear-gradient(180deg,#e5edff,#9fb3d8); }
+        .rrow:nth-child(3) .rno { background: linear-gradient(180deg,#fed7aa,#fb923c); }
+        .rmain .top { display:flex; align-items:baseline; gap:8px; }
+        .rmain .nm { font-size:14px; color: var(--text); }
+        .rmain .val { margin-left:auto; font-family:"Consolas",monospace; font-weight:700; color: var(--cyan); }
+        .rmain .val small { color: var(--muted); font-weight:400; font-size:11px; margin-left:3px; }
+        .rmain .share { color: var(--muted); font-size:12px; margin-left:6px; }
+        .track { height:10px; border-radius:6px; background: rgba(30,43,74,.7); margin-top:7px; overflow:hidden; }
+        .track > span { display:block; height:100%; border-radius:6px;
+                        background: linear-gradient(90deg,#0ea5e9,#38bdf8); box-shadow:0 0 12px rgba(56,189,248,.5); }
+        .rrow:nth-child(1) .track > span { background: linear-gradient(90deg,#f59e0b,#fcd34d); box-shadow:0 0 12px rgba(251,191,36,.5); }
+
+        /* 能源结构环形 */
+        .struct { display:grid; grid-template-columns: 180px 1fr; gap: 22px; align-items:center; padding: 10px 4px; }
+        .donut { width:180px; height:180px; border-radius:50%; position:relative;
+                 background: conic-gradient({{ donut_gradient }});
+                 box-shadow: 0 0 30px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.04); }
+        .donut::after { content:""; position:absolute; inset:34px; border-radius:50%;
+                        background: radial-gradient(circle at 50% 40%, #10192e, #0a1120);
+                        box-shadow: inset 0 0 22px rgba(0,0,0,.7); }
+        .donut .center { position:absolute; inset:0; display:flex; flex-direction:column;
+                         align-items:center; justify-content:center; z-index:2; }
+        .donut .center .big { font-size:24px; font-weight:800; color: var(--text);
+                              font-family:"Consolas",monospace; }
+        .donut .center .lb { font-size:11px; color: var(--muted); letter-spacing:1px; margin-top:2px; }
+        .legend { display:flex; flex-direction:column; gap: 12px; }
+        .lrow { display:flex; align-items:center; gap:10px; }
+        .lrow .sw { width:12px; height:12px; border-radius:3px; box-shadow:0 0 8px currentColor; }
+        .lrow .nm { font-size:14px; color: var(--text); min-width:64px; }
+        .lrow .pct { margin-left:auto; font-family:"Consolas",monospace; font-weight:700; color: var(--text); }
+        .lrow .tce { color: var(--muted); font-size:12px; font-family:"Consolas",monospace; width:96px; text-align:right; }
+
+        /* 趋势折线 */
+        .trend { padding: 6px 4px 0; }
+        .trend svg { width:100%; height:auto; display:block; }
+        .gridline { stroke: rgba(30,43,74,.8); stroke-width:1; }
+        .gridtxt { fill: var(--muted); font-size:11px; font-family:"Consolas",monospace; }
+        .axistxt { fill: var(--muted); font-size:11px; font-family:"Consolas",monospace; }
+        .tline { fill:none; stroke: var(--cyan); stroke-width:2.4; stroke-linejoin:round; stroke-linecap:round;
+                 filter: drop-shadow(0 0 6px rgba(56,189,248,.6)); }
+        .tnode { fill: #071019; stroke: var(--cyan); stroke-width:2; }
+        .tpeak { fill: var(--gold); stroke:#0a0f1e; stroke-width:1.5; }
+        .peaktxt { fill: var(--gold); font-size:12px; font-weight:700; font-family:"Consolas",monospace; }
+        .noviz { text-align:center; color: var(--muted); padding: 40px; letter-spacing:1px; }
+
+        /* ---- 手写 SVG 图表(趋势曲线 / 环图 / 柱状) ---- */
+        .chart { width:100%; }
+        .chart svg { width:100%; height:auto; display:block; overflow:visible; }
+        .g-grid { stroke: rgba(30,43,74,.85); stroke-width:1; }
+        .g-gridtxt { fill: var(--muted); font-size:11px; font-family:"Consolas",monospace; }
+        .g-axistxt { fill: var(--muted); font-size:12px; font-family:"Consolas",monospace; }
+        /* 柱状 */
+        .g-bar { transition: opacity .12s, filter .12s; cursor: pointer; }
+        .g-bar:hover { filter: brightness(1.25); }
+        .g-barval { fill: var(--text); font-size:12px; font-weight:700; font-family:"Consolas",monospace; }
+        /* 环图 */
+        .g-arc { cursor: pointer; transition: transform .15s ease, opacity .12s; transform-origin: center;
+                 transform-box: fill-box; }
+        .g-arc:hover { filter: brightness(1.18); }
+        .g-arc.dim { opacity:.32; }
+        .donutsvg { display:block; margin:auto; }
+        /* 趋势曲线 */
+        .g-tline { fill:none; stroke: var(--cyan); stroke-width:2.6; stroke-linejoin:round; stroke-linecap:round;
+                   filter: drop-shadow(0 0 6px rgba(56,189,248,.6)); }
+        .g-tnode { fill:#071019; stroke: var(--cyan); stroke-width:2; }
+        .g-tpeak { fill: var(--gold); stroke:#0a0f1e; stroke-width:1.5; }
+        .g-peaktxt { fill: var(--gold); font-size:12px; font-weight:700; font-family:"Consolas",monospace; }
+        .g-cross { stroke: rgba(56,189,248,.55); stroke-width:1; stroke-dasharray:3 3; }
+        .g-hot { fill: var(--cyan); stroke:#fff; stroke-width:1.5; filter: drop-shadow(0 0 6px rgba(56,189,248,.9)); }
+        /* 共用浮层 tooltip */
+        .chart-tip { position: fixed; z-index: 99; pointer-events:none; opacity:0; transition: opacity .1s;
+                     background: rgba(9,15,30,.96); border:1px solid var(--cyan); border-radius:8px;
+                     padding: 8px 12px; font-size:13px; color: var(--text); letter-spacing:.5px;
+                     box-shadow: 0 6px 26px rgba(0,0,0,.6); transform: translate(-50%, -120%); white-space:nowrap; }
+        .chart-tip .tt-t { color: var(--muted); font-size:11px; margin-bottom:3px; letter-spacing:1px; }
+        .chart-tip .tt-v { font-family:"Consolas",monospace; font-weight:800; font-size:16px; }
+        .chart-tip .tt-v small { color: var(--muted); font-weight:500; font-size:11px; margin-left:4px; }
+        .chart-tip .tt-sw { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px;
+                            vertical-align:middle; }
+
+        /* ---- 超标预警红灯墙 ---- */
+        .alertsec { padding: 6px 40px 4px; }
+        .alerthd { display:flex; align-items:center; gap:12px; padding: 8px 0 6px; }
+        .alerthd h2 { font-size:17px; letter-spacing:3px; color: var(--text); }
+        .alerthd .live { display:inline-flex; align-items:center; gap:6px; color: var(--danger); font-size:12px; letter-spacing:1px; }
+        .alerthd .live .dot { width:9px; height:9px; border-radius:50%; background: var(--danger);
+                              box-shadow:0 0 10px var(--danger); animation: blink 1.1s infinite; }
+        .alerthd .asof { margin-left:auto; color: var(--muted); font-size:12px; letter-spacing:1px; }
+        .wallpanel { background: linear-gradient(180deg, var(--panel), var(--panel2)); border:1px solid var(--line);
+                     border-radius: 14px; overflow:hidden; box-shadow: 0 0 24px rgba(0,0,0,.4); }
+        .wallpanel table { width:100%; border-collapse: collapse; }
+        .wallpanel th { text-align:left; padding: 11px 16px; font-size: 12px; color: var(--muted);
+                        letter-spacing:1px; background: rgba(30,43,74,.4); border-bottom:1px solid var(--line); }
+        .wallpanel td { padding: 10px 16px; border-bottom: 1px solid rgba(30,43,74,.5); font-size: 14px; }
+        .wallpanel tr:last-child td { border-bottom:none; }
+        .wallpanel tr.over td { background: rgba(251,113,133,.07); }
+        .num { text-align:right; font-family:"Consolas","Menlo",monospace; white-space:nowrap; }
+        .badge { display:inline-flex; align-items:center; gap:6px; padding: 3px 11px; border-radius:999px;
+                 font-size:12px; letter-spacing:1px; font-weight:600; white-space:nowrap; }
+        .badge.over { color:#fff; background: linear-gradient(180deg,#fb5c74,#e11d48); border:1px solid #fb7185; }
+        .badge.warn { color:#3a2a00; background: linear-gradient(180deg,#fbd24b,#f59e0b); border:1px solid #fbbf24; }
+        .badge .dotp { width:7px; height:7px; border-radius:50%; background: rgba(0,0,0,.55); }
+        .edot { display:inline-block; width:9px; height:9px; border-radius:50%; vertical-align:middle; box-shadow:0 0 8px currentColor; }
+        .rbar { width: 150px; height: 11px; border-radius:6px; background: rgba(30,43,74,.7);
+                position:relative; overflow:hidden; display:inline-block; vertical-align:middle; }
+        .rbar > span { display:block; height:100%; border-radius:6px; }
+        .rbar > span.danger { background: linear-gradient(90deg,#e11d48,#fb7185); box-shadow:0 0 12px rgba(251,113,133,.6); }
+        .rbar > span.warn   { background: linear-gradient(90deg,#d97706,#fbbf24); box-shadow:0 0 12px rgba(251,191,36,.5); }
+        .rbar .tick { position:absolute; top:-2px; bottom:-2px; left:76.9%; width:2px; background:#fff; box-shadow:0 0 6px #fff; }
+        .rpct { display:inline-block; margin-left:10px; width:52px; text-align:right; font-family:"Consolas",monospace; font-weight:700; }
+        .rpct.danger { color: var(--danger); } .rpct.warn { color: var(--warn); }
+        .allclear { text-align:center; color: var(--ok); padding: 34px; font-size: 15px; letter-spacing:1px; }
+        .morerow td { text-align:center; color: var(--muted); font-size:13px; }
+
+        .nav { text-align:center; padding: 16px 0 24px; }
+        .nav a { display:inline-block; margin: 6px 8px; padding: 9px 20px; border-radius: 8px; font-size: 14px;
+                 letter-spacing: 1px; color: var(--text); border: 1px solid var(--line);
+                 background: var(--panel); transition: all .15s; }
+        .nav a:hover { border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 16px rgba(56,189,248,.3); }
+        .nav a.hot { border-color: rgba(251,113,133,.5); color: var(--danger); }
+        .nav a.hot:hover { box-shadow: 0 0 16px rgba(251,113,133,.35); }
+
+        @media (max-width:1180px){ .kpis{grid-template-columns:repeat(2,1fr)} .main{grid-template-columns:1fr} }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="brand">
+            <h1>车间能耗监控看板</h1>
+            <div class="sub">某企业 · 焦化车间 · 能耗采集 → 同比环比 → 超标预警 → 能耗排名 → 大屏可视</div>
+        </div>
+        <div class="clock">
+            <div class="t" id="clk-t">--:--:--</div>
+            <div class="d" id="clk-d">对标口径日 {{ ref }}</div>
+            <div class="live"><span class="beat"></span>实时监控 · 每 60s 自动刷新</div>
+        </div>
+    </header>
+
+    {# ============ KPI 概览 ============ #}
+    <div class="kpis">
+        <div class="kpi hero">
+            <div class="k">全厂总能耗（当日 · 折标煤）</div>
+            <div class="v">{{ total_tce_disp }}<small>tce</small></div>
+            <div class="foot">
+                环比昨日 <span class="delta {{ mom_d.cls }}">{{ mom_d.arrow }} {{ mom_d.text }}</span>
+                　昨日 {{ prev_tce_disp }} tce
+            </div>
+        </div>
+        <div class="kpi">
+            <div class="k">在用工段</div>
+            <div class="v">{{ section_count }}<small>个</small></div>
+            <div class="foot">能耗读数 {{ reading_count }} 条</div>
+        </div>
+        <div class="kpi">
+            <div class="k">能源类型</div>
+            <div class="v">{{ energy_types|length }}<small>类</small></div>
+            <div class="foot">电 / 煤 / 蒸汽 统一折标煤</div>
+        </div>
+        <div class="kpi over">
+            <div class="k">🔴 超标项</div>
+            <div class="v">{{ over_count }}<small>/ {{ quota_total }} 项</small></div>
+            <div class="foot">实时对标 {{ quota_count }} 项定额</div>
+        </div>
+        <div class="kpi warn">
+            <div class="k">🟡 预警项</div>
+            <div class="v">{{ warn_count }}<small>/ {{ quota_total }} 项</small></div>
+            <div class="foot">达标 {{ normal_count }} 项</div>
+        </div>
+    </div>
+
+    {# ============ 排名 + 结构 ============ #}
+    <div class="main">
+        <div class="panel">
+            <div class="hd"><h2>🏭 各工段能耗对比</h2><span class="tag">当日折标煤 tce</span></div>
+            <div class="bd">
+                {% if sec_rows %}
+                <div class="chart" id="bars"></div>
+                {% else %}<div class="noviz">暂无当日读数</div>{% endif %}
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="hd"><h2>🔆 能源结构占比</h2><span class="tag">电 / 煤 / 蒸汽 · 折标煤 tce</span></div>
+            <div class="bd">
+                {% if struct %}
+                <div class="struct">
+                    <div class="chart" id="donut" style="width:180px;"></div>
+                    <div class="legend">
+                        {% for s in struct %}
+                        <div class="lrow">
+                            <span class="sw" style="background:{{ s.et.color }};color:{{ s.et.color }}"></span>
+                            <span class="nm">{{ s.et.name }}</span>
+                            <span class="tce">{{ s.tce_disp }} tce</span>
+                            <span class="pct">{{ s.pct_disp }}%</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% else %}<div class="noviz">暂无当日读数</div>{% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# ============ 能耗趋势曲线 ============ #}
+    <div class="main" style="grid-template-columns:1fr;">
+        <div class="panel">
+            <div class="hd"><h2>📈 全厂能耗趋势</h2><span class="tag">近 {{ trend.nodes|length }} 日 · 折标煤 tce</span></div>
+            <div class="bd">
+                {% if trend.has_data %}
+                <div class="chart" id="trend"></div>
+                {% else %}<div class="noviz">暂无读数,无法绘制趋势</div>{% endif %}
+            </div>
+        </div>
+    </div>
+
+    {{ chart_json|json_script:"chartData" }}
+
+    {# ============ 超标预警红灯墙 ============ #}
+    <div class="alertsec">
+        <div class="alerthd">
+            <h2>⚠ 超标预警</h2>
+            <span class="live"><span class="dot"></span>实时对标定额</span>
+            <span class="asof">对标口径日：{{ ref }}</span>
+        </div>
+        <div class="wallpanel">
+            {% if alert_rows %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>状态</th><th>工段</th><th>能源</th>
+                        <th class="num">实际</th><th class="num">对标定额</th>
+                        <th style="width:230px">达成率</th><th class="num">超出</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in alert_rows %}
+                    <tr class="{% if r.status == 'over' %}over{% endif %}">
+                        <td>{% if r.status == 'over' %}<span class="badge over"><span class="dotp"></span>超标</span>
+                            {% else %}<span class="badge warn"><span class="dotp"></span>预警</span>{% endif %}</td>
+                        <td>{{ r.section.name }}</td>
+                        <td><span class="edot" style="color:{{ r.et.color }}"></span> {{ r.et.name }}</td>
+                        <td class="num">{{ r.actual_disp }} <span style="color:var(--muted);font-size:11px">{{ r.et.unit }}</span></td>
+                        <td class="num">{{ r.eff_limit_disp }}</td>
+                        <td>
+                            <span class="rbar"><span class="{{ r.cls }}" style="width:{{ r.ratio_bar }}%"></span><span class="tick"></span></span>
+                            <span class="rpct {{ r.cls }}">{{ r.ratio_pct }}%</span>
+                        </td>
+                        <td class="num">{% if r.over_by_disp %}<span style="color:var(--danger)">+{{ r.over_by_disp }}</span>{% else %}—{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if alert_more %}
+                    <tr class="morerow"><td colspan="7">另有 {{ alert_more }} 项告警，点击下方「超标预警清单」查看全部 →</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="allclear">🎉 当前对标周期内无超标 / 预警项，全厂能耗均在定额之内。</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="nav">
+        <a href="{% url 'board:alerts' %}" class="hot">⚠ 超标预警清单</a>
+        <a href="{% url 'board:analysis' %}">📈 同比环比 · 工段能耗排名</a>
+        <a href="{% url 'board:efficiency' %}">🏭 单位产品能耗 · 能效对标</a>
+        <a href="{% url 'board:reading_batch' %}">⚡ 快速批量录入能耗</a>
+        <a href="{% url 'board:reading_list' %}">📋 能耗数据台账</a>
+        <a href="{% url 'board:section_list' %}">⚙ 工段台账管理</a>
+        <a href="{% url 'board:energy_list' %}">⚡ 能源台账管理</a>
+    </div>
+
+    <div class="chart-tip" id="chartTip"></div>
+
+    <script>
+        // ================= 手写 SVG 数据可视化(纯原生,不连任何 CDN) =================
+        (function () {
+            var SVGNS = 'http://www.w3.org/2000/svg';
+            var DATA = (function () {
+                var el = document.getElementById('chartData');
+                try { return el ? JSON.parse(el.textContent) : null; } catch (e) { return null; }
+            })();
+            if (!DATA) return;
+
+            var tip = document.getElementById('chartTip');
+            function el(name, attrs, parent) {
+                var e = document.createElementNS(SVGNS, name);
+                for (var k in attrs) if (attrs.hasOwnProperty(k)) e.setAttribute(k, attrs[k]);
+                if (parent) parent.appendChild(e);
+                return e;
+            }
+            function svg(host, w, h) {
+                var s = el('svg', { viewBox: '0 0 ' + w + ' ' + h, preserveAspectRatio: 'xMidYMid meet' });
+                host.appendChild(s);
+                return s;
+            }
+            function fmt(n) {
+                n = Math.round(n * 10) / 10;
+                var s = (n % 1 === 0) ? String(n) : n.toFixed(1);
+                return s.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            }
+            function showTip(evt, html) {
+                tip.innerHTML = html;
+                tip.style.left = evt.clientX + 'px';
+                tip.style.top = (evt.clientY - 12) + 'px';
+                tip.style.opacity = '1';
+            }
+            function moveTip(evt) {
+                tip.style.left = evt.clientX + 'px';
+                tip.style.top = (evt.clientY - 12) + 'px';
+            }
+            function hideTip() { tip.style.opacity = '0'; }
+
+            // ---------- ① 各工段能耗对比:垂直柱状 ----------
+            (function drawBars() {
+                var host = document.getElementById('bars');
+                if (!host || !DATA.sections || !DATA.sections.length) return;
+                var rows = DATA.sections;
+                var W = 620, H = 300, padL = 46, padR = 14, padT = 24, padB = 46;
+                var plotW = W - padL - padR, plotH = H - padT - padB;
+                var vmax = Math.max.apply(null, rows.map(function (r) { return r.v = r.tce; })) || 1;
+                // 顶部留白,刻度取整
+                var step = niceStep(vmax / 4);
+                var top = Math.ceil(vmax / step) * step || step;
+                var s = svg(host, W, H);
+                // 网格 + 左侧刻度
+                for (var g = 0; g <= 4; g++) {
+                    var gv = top * g / 4;
+                    var gy = padT + plotH * (1 - g / 4);
+                    el('line', { class: 'g-grid', x1: padL, y1: gy, x2: W - padR, y2: gy }, s);
+                    var tx = el('text', { class: 'g-gridtxt', x: padL - 6, y: gy, 'text-anchor': 'end', dy: 4 }, s);
+                    tx.textContent = fmt(gv);
+                }
+                var n = rows.length;
+                var slot = plotW / n, bw = Math.min(56, slot * 0.56);
+                rows.forEach(function (r, i) {
+                    var cx = padL + slot * (i + 0.5);
+                    var bh = plotH * (r.tce / top);
+                    var y = padT + plotH - bh, x = cx - bw / 2;
+                    var gid = 'bg' + i;
+                    var grad = el('linearGradient', { id: gid, x1: 0, y1: 0, x2: 0, y2: 1 }, s);
+                    var c1 = r.rank === 1 ? '#fcd34d' : '#38bdf8';
+                    var c2 = r.rank === 1 ? '#f59e0b' : '#0ea5e9';
+                    el('stop', { offset: '0%', 'stop-color': c1 }, grad);
+                    el('stop', { offset: '100%', 'stop-color': c2 }, grad);
+                    var rect = el('rect', {
+                        class: 'g-bar', x: x, y: y, width: bw, height: Math.max(bh, 0.5),
+                        rx: 6, fill: 'url(#' + gid + ')',
+                        filter: 'drop-shadow(0 0 10px ' + (r.rank === 1 ? 'rgba(251,191,36,.5)' : 'rgba(56,189,248,.45)') + ')'
+                    }, s);
+                    // 值标签
+                    var vt = el('text', { class: 'g-barval', x: cx, y: y - 7, 'text-anchor': 'middle' }, s);
+                    vt.textContent = fmt(r.tce);
+                    // X 轴工段名
+                    var nt = el('text', { class: 'g-axistxt', x: cx, y: H - padB + 20, 'text-anchor': 'middle' }, s);
+                    nt.textContent = r.name;
+                    // 交互
+                    rect.addEventListener('mouseenter', function (e) {
+                        showTip(e, '<div class="tt-t">第 ' + r.rank + ' 名 · ' + r.name + '</div>' +
+                            '<div class="tt-v">' + fmt(r.tce) + '<small>tce</small></div>' +
+                            '<div class="tt-t" style="margin:4px 0 0">占全厂 ' + r.share + '%</div>');
+                    });
+                    rect.addEventListener('mousemove', moveTip);
+                    rect.addEventListener('mouseleave', hideTip);
+                });
+            })();
+
+            // ---------- ② 能源结构占比:手写 SVG 环图 ----------
+            (function drawDonut() {
+                var host = document.getElementById('donut');
+                if (!host || !DATA.struct || !DATA.struct.length) return;
+                var segs = DATA.struct;
+                var total = segs.reduce(function (a, b) { return a + b.tce; }, 0) || 1;
+                var SZ = 180, cx = SZ / 2, cy = SZ / 2, rO = 84, rI = 52, gap = 1.6;
+                var s = svg(host, SZ, SZ);
+                s.setAttribute('class', 'donutsvg');
+                function polar(r, ang) {
+                    var a = (ang - 90) * Math.PI / 180;
+                    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+                }
+                function arc(a0, a1) {
+                    var large = (a1 - a0) > 180 ? 1 : 0;
+                    var p0 = polar(rO, a0), p1 = polar(rO, a1), p2 = polar(rI, a1), p3 = polar(rI, a0);
+                    return 'M' + p0[0] + ' ' + p0[1] +
+                        ' A' + rO + ' ' + rO + ' 0 ' + large + ' 1 ' + p1[0] + ' ' + p1[1] +
+                        ' L' + p2[0] + ' ' + p2[1] +
+                        ' A' + rI + ' ' + rI + ' 0 ' + large + ' 0 ' + p3[0] + ' ' + p3[1] + ' Z';
+                }
+                var acc = 0, arcs = [];
+                segs.forEach(function (seg) {
+                    var sweep = seg.tce / total * 360;
+                    var a0 = acc + gap / 2, a1 = acc + sweep - gap / 2;
+                    if (a1 <= a0) a1 = a0 + 0.4;
+                    acc += sweep;
+                    var p = el('path', {
+                        class: 'g-arc', d: arc(a0, a1), fill: seg.color,
+                        filter: 'drop-shadow(0 0 6px ' + seg.color + '88)'
+                    }, s);
+                    arcs.push(p);
+                    p.addEventListener('mouseenter', function (e) {
+                        arcs.forEach(function (a) { a.classList.add('dim'); });
+                        p.classList.remove('dim');
+                        big.textContent = fmt(seg.tce);
+                        lb.textContent = seg.name + ' · ' + seg.pct + '%';
+                        showTip(e, '<div class="tt-t"><span class="tt-sw" style="background:' + seg.color + '"></span>' + seg.name + '</div>' +
+                            '<div class="tt-v">' + seg.pct + '<small>%</small></div>' +
+                            '<div class="tt-t" style="margin:4px 0 0">' + fmt(seg.tce) + ' tce</div>');
+                    });
+                    p.addEventListener('mousemove', moveTip);
+                    p.addEventListener('mouseleave', function () {
+                        arcs.forEach(function (a) { a.classList.remove('dim'); });
+                        big.textContent = fmt(total); lb.textContent = '合计 tce';
+                        hideTip();
+                    });
+                });
+                // 中心读数
+                var big = el('text', { x: cx, y: cy - 2, 'text-anchor': 'middle',
+                    fill: '#e6f0ff', 'font-size': 22, 'font-weight': 800,
+                    'font-family': 'Consolas,monospace' }, s);
+                big.textContent = fmt(total);
+                var lb = el('text', { x: cx, y: cy + 16, 'text-anchor': 'middle',
+                    fill: '#7f92b5', 'font-size': 11, 'letter-spacing': 1 }, s);
+                lb.textContent = '合计 tce';
+            })();
+
+            // ---------- ③ 全厂能耗趋势:手写 SVG 平滑曲线 ----------
+            (function drawTrend() {
+                var host = document.getElementById('trend');
+                if (!host || !DATA.trend || !DATA.trend.length) return;
+                var d = DATA.trend;
+                var W = 1000, H = 260, padL = 44, padR = 16, padT = 22, padB = 34;
+                var plotW = W - padL - padR, plotH = H - padT - padB;
+                var vals = d.map(function (t) { return t.v; });
+                var vmax = Math.max.apply(null, vals) || 1;
+                var step = niceStep(vmax / 4), top = Math.ceil(vmax / step) * step || step;
+                var n = d.length;
+                function X(i) { return padL + (n > 1 ? plotW * i / (n - 1) : plotW / 2); }
+                function Y(v) { return padT + plotH * (1 - v / top); }
+                var pts = d.map(function (t, i) { return [X(i), Y(t.v)]; });
+                var s = svg(host, W, H);
+                var grad = el('linearGradient', { id: 'tgrad', x1: 0, y1: 0, x2: 0, y2: 1 }, s);
+                el('stop', { offset: '0%', 'stop-color': '#38bdf8', 'stop-opacity': 0.34 }, grad);
+                el('stop', { offset: '100%', 'stop-color': '#38bdf8', 'stop-opacity': 0 }, grad);
+                // 网格 + 刻度
+                for (var g = 0; g <= 4; g++) {
+                    var gy = padT + plotH * (1 - g / 4);
+                    el('line', { class: 'g-grid', x1: padL, y1: gy, x2: W - padR, y2: gy }, s);
+                    var tx = el('text', { class: 'g-gridtxt', x: padL - 6, y: gy, 'text-anchor': 'end', dy: 4 }, s);
+                    tx.textContent = fmt(top * g / 4);
+                }
+                // Catmull-Rom → 三次贝塞尔,画平滑曲线
+                function smooth(p) {
+                    if (p.length < 2) return p.length ? 'M' + p[0][0] + ' ' + p[0][1] : '';
+                    var dd = 'M' + p[0][0] + ' ' + p[0][1];
+                    for (var i = 0; i < p.length - 1; i++) {
+                        var p0 = p[i - 1] || p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] || p[i + 1];
+                        var c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+                        var c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+                        dd += ' C' + c1x + ' ' + c1y + ' ' + c2x + ' ' + c2y + ' ' + p2[0] + ' ' + p2[1];
+                    }
+                    return dd;
+                }
+                var line = smooth(pts);
+                var base = padT + plotH;
+                el('path', { d: line + ' L' + pts[n - 1][0] + ' ' + base + ' L' + pts[0][0] + ' ' + base + ' Z',
+                    fill: 'url(#tgrad)', stroke: 'none' }, s);
+                el('path', { class: 'g-tline', d: line }, s);
+                // 峰值
+                var peakI = vals.indexOf(vmax);
+                d.forEach(function (t, i) {
+                    var isPeak = i === peakI;
+                    el('circle', { class: isPeak ? 'g-tpeak' : 'g-tnode',
+                        cx: pts[i][0], cy: pts[i][1], r: isPeak ? 5 : 3.2 }, s);
+                    // X 轴日期(密集时隔一个显示)
+                    if (n <= 16 || i % 2 === 0 || isPeak) {
+                        var xt = el('text', { class: 'g-axistxt', x: pts[i][0], y: base + 18,
+                            'text-anchor': 'middle', 'font-size': 11 }, s);
+                        xt.textContent = t.d;
+                    }
+                });
+                var pk = el('text', { class: 'g-peaktxt', x: pts[peakI][0], y: pts[peakI][1] - 11, 'text-anchor': 'middle' }, s);
+                pk.textContent = '峰值 ' + fmt(vmax);
+                // 悬停:十字准星 + 热点 + tooltip(整图捕获鼠标)
+                var cross = el('line', { class: 'g-cross', x1: 0, y1: padT, x2: 0, y2: base, opacity: 0 }, s);
+                var hot = el('circle', { class: 'g-hot', cx: 0, cy: 0, r: 5, opacity: 0 }, s);
+                var hit = el('rect', { x: padL, y: padT, width: plotW, height: plotH, fill: 'transparent' }, s);
+                function nearest(evt) {
+                    var box = s.getBoundingClientRect();
+                    var vx = (evt.clientX - box.left) / box.width * W;
+                    var i = Math.round((vx - padL) / (plotW / Math.max(n - 1, 1)));
+                    return Math.max(0, Math.min(n - 1, i));
+                }
+                function onMove(evt) {
+                    var i = nearest(evt);
+                    cross.setAttribute('x1', pts[i][0]); cross.setAttribute('x2', pts[i][0]);
+                    cross.setAttribute('opacity', 1);
+                    hot.setAttribute('cx', pts[i][0]); hot.setAttribute('cy', pts[i][1]);
+                    hot.setAttribute('opacity', 1);
+                    showTip(evt, '<div class="tt-t">' + d[i].d + (i === peakI ? ' · 峰值' : '') + '</div>' +
+                        '<div class="tt-v">' + fmt(d[i].v) + '<small>tce</small></div>');
+                }
+                hit.addEventListener('mousemove', onMove);
+                hit.addEventListener('mouseleave', function () {
+                    cross.setAttribute('opacity', 0); hot.setAttribute('opacity', 0); hideTip();
+                });
+            })();
+
+            // 刻度取整:返回 1/2/5×10ⁿ 中不小于 x 的最小值
+            function niceStep(x) {
+                if (x <= 0) return 1;
+                var p = Math.pow(10, Math.floor(Math.log(x) / Math.LN10));
+                var f = x / p;
+                var nf = f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10;
+                return nf * p;
+            }
+        })();
+    </script>
+
+    <script>
+        // 实时时钟(纯原生,不连任何 CDN)
+        (function () {
+            var W = ['日','一','二','三','四','五','六'];
+            function p(n){ return (n<10?'0':'')+n; }
+            function tick(){
+                var d = new Date();
+                var t = document.getElementById('clk-t');
+                if (t) t.textContent = p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+            }
+            tick(); setInterval(tick, 1000);
+            // 60s 自动刷新,拉取最新读数(适合大屏投屏值守)
+            setTimeout(function(){ location.reload(); }, 60000);
+        })();
+    </script>
+</body>
+</html>
